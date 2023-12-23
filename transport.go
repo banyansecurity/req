@@ -120,7 +120,7 @@ type Transport struct {
 	connsPerHostWait map[connectMethodKey]wantConnQueue // waiting getConns
 	altSvcJar        altsvc.Jar
 	pendingAltSvcs   map[string]*pendingAltSvc
-	pendingAltSvcsMu sync.Mutex
+	pendingAltSvcsMu sync.RWMutex
 
 	// Force using specific http version
 	forceHttpVersion httpVersion
@@ -862,7 +862,10 @@ func (t *Transport) checkAltSvc(req *http.Request) (resp *http.Response, err err
 		return
 	}
 	addr := netutil.AuthorityKey(req.URL)
+
+	t.pendingAltSvcsMu.RLock()
 	pas, ok := t.pendingAltSvcs[addr]
+	t.pendingAltSvcsMu.RUnlock()
 	if ok && pas.Transport != nil {
 		pas.Mu.Lock()
 		if pas.Transport != nil {

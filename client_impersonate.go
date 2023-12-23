@@ -98,6 +98,10 @@ var (
 			Val: 65536,
 		},
 		{
+			ID:  http2.SettingEnablePush,
+			Val: 0,
+		},
+		{
 			ID:  http2.SettingInitialWindowSize,
 			Val: 131072,
 		},

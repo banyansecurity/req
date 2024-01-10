@@ -881,7 +881,9 @@ func (t *Transport) checkAltSvc(req *http.Request) (resp *http.Response, err err
 				}
 			} else {
 				t.altSvcJar.SetAltSvc(addr, pas.Entries[pas.CurrentIndex])
+				t.pendingAltSvcsMu.Lock()
 				delete(t.pendingAltSvcs, addr)
+				t.pendingAltSvcsMu.Unlock()
 			}
 		}
 		pas.Mu.Unlock()

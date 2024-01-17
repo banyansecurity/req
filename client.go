@@ -15,6 +15,7 @@ import (
 	urlpkg "net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1659,7 +1660,14 @@ func (c *Client) roundTrip(r *Request) (resp *Response, err error) {
 	}
 
 	// setup header
-	contentLength := int64(len(r.Body))
+	var contentLength int64
+	if int64(len(r.Body)) != 0 {
+		contentLength = int64(len(r.Body))
+	} else {
+		if strContentLength := r.Headers.Get("Content-Length"); strContentLength != "" {
+			contentLength, _ = strconv.ParseInt(strContentLength, 10, 64)
+		}
+	}
 
 	var reqBody io.ReadCloser
 	if r.GetBody != nil {

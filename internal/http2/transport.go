@@ -1136,7 +1136,6 @@ func checkConnHeaders(req *http.Request) error {
 // req.ContentLength, where 0 actually means zero (not unknown) and -1
 // means unknown.
 func actualContentLength(req *http.Request) int64 {
-	log.Printf("%s %d", req.URL.String(), req.ContentLength)
 	if req.Body == nil || req.Body == http.NoBody {
 		return 0
 	}
@@ -2001,7 +2000,6 @@ func (cc *ClientConn) encodeHeaders(req *http.Request, addGzipHeader bool, trail
 
 			writeHeader(k, vv...)
 		}
-		log.Printf("%s %d", req.URL.String(), contentLength)
 		if shouldSendReqContentLength(req.Method, contentLength) {
 			writeHeader("content-length", strconv.FormatInt(contentLength, 10))
 		}

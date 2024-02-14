@@ -1969,7 +1969,7 @@ func (cc *ClientConn) encodeHeaders(req *http.Request, addGzipHeader bool, trail
 				if vv[0] == "" {
 					continue
 				}
-			} else if ascii.EqualFold(k, "cookie") {
+			} else if !cc.t.PreserveCookie && ascii.EqualFold(k, "cookie") {
 				var vals []string
 				// Per 8.1.2.5 To allow for better compression efficiency, the
 				// Cookie header field MAY be split into separate header fields,

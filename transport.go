@@ -499,6 +499,20 @@ func (t *Transport) SetTLSHandshake(fn func(ctx context.Context, addr string, pl
 	return t
 }
 
+// EnablePreserveCookie preserves original request formatting for
+// cookie headers.
+func (t *Transport) EnablePreserveCookie() *Transport {
+	t.PreserveCookie = true
+	return t
+}
+
+// DisablePreserveCookie allows the transport to rewrite headers for
+// compression efficiency.
+func (t *Transport) DisablePreserveCookie() *Transport {
+	t.PreserveCookie = false
+	return t
+}
+
 type pendingAltSvc struct {
 	CurrentIndex int
 	Entries      []*altsvc.AltSvc

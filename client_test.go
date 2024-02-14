@@ -653,4 +653,6 @@ func TestCloneCookieJar(t *testing.T) {
 func TestEnablePreserveCookie(t *testing.T) {
 	c := tc().EnablePreserveCookie()
 	tests.AssertEqual(t, true, c.Transport.PreserveCookie)
+	c.DisablePreserveCookie()
+	tests.AssertEqual(t, false, c.Transport.PreserveCookie)
 }

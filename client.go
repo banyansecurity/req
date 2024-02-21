@@ -1221,6 +1221,62 @@ func (c *Client) SetTLSFingerprint(clientHelloID utls.ClientHelloID) *Client {
 	return c
 }
 
+// SetCustomTLSFingerprint allows setting a TLS fingerprint from
+// raw TLS Client Hello bytes.
+func (c *Client) SetCustomTLSFingerprint(rawClientHello []byte) *Client {
+	fn := func(ctx context.Context, addr string, plainConn net.Conn) (conn net.Conn, tlsState *tls.ConnectionState, err error) {
+		colonPos := strings.LastIndex(addr, ":")
+		if colonPos == -1 {
+			colonPos = len(addr)
+		}
+
+		var (
+			hostname   = addr[:colonPos]
+			utlsConfig = &utls.Config{
+				ServerName:         hostname,
+				RootCAs:            c.GetTLSClientConfig().RootCAs,
+				NextProtos:         c.GetTLSClientConfig().NextProtos,
+				InsecureSkipVerify: c.GetTLSClientConfig().InsecureSkipVerify,
+			}
+			uconn         = &uTLSConn{utls.UClient(plainConn, utlsConfig, utls.HelloCustom)}
+			fingerprinter = &utls.Fingerprinter{}
+		)
+		generatedSpec, err := fingerprinter.FingerprintClientHello(rawClientHello)
+		if err != nil {
+			return
+		}
+
+		err = uconn.ApplyPreset(generatedSpec)
+		if err != nil {
+			return
+		}
+
+		err = uconn.HandshakeContext(ctx)
+		if err != nil {
+			return
+		}
+		cs := uconn.Conn.ConnectionState()
+		conn = uconn
+		tlsState = &tls.ConnectionState{
+			Version:                     cs.Version,
+			HandshakeComplete:           cs.HandshakeComplete,
+			DidResume:                   cs.DidResume,
+			CipherSuite:                 cs.CipherSuite,
+			NegotiatedProtocol:          cs.NegotiatedProtocol,
+			NegotiatedProtocolIsMutual:  cs.NegotiatedProtocolIsMutual,
+			ServerName:                  cs.ServerName,
+			PeerCertificates:            cs.PeerCertificates,
+			VerifiedChains:              cs.VerifiedChains,
+			SignedCertificateTimestamps: cs.SignedCertificateTimestamps,
+			OCSPResponse:                cs.OCSPResponse,
+			TLSUnique:                   cs.TLSUnique,
+		}
+		return
+	}
+	c.Transport.SetTLSHandshake(fn)
+	return c
+}
+
 // SetTLSHandshake set the custom tls handshake function, only valid for HTTP1 and HTTP2, not HTTP3,
 // it specifies an optional dial function for tls handshake, it works even if a proxy is set, can be
 // used to customize the tls fingerprint.

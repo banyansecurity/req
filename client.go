@@ -898,18 +898,18 @@ func (c *Client) SetCommonHeaderOrder(keys ...string) *Client {
 	return c
 }
 
-// SetCommonPseudoHeaderOder set the order of the pseudo http header requests fired
+// SetCommonPseudoHeaderOrder set the order of the pseudo http header requests fired
 // from the client (case-insensitive).
 // Note this is only valid for http2 and http3.
 // For example:
 //
-//	client.SetCommonPseudoHeaderOder(
+//	client.SetCommonPseudoHeaderOrder(
 //	    ":scheme",
 //	    ":authority",
 //	    ":path",
 //	    ":method",
 //	)
-func (c *Client) SetCommonPseudoHeaderOder(keys ...string) *Client {
+func (c *Client) SetCommonPseudoHeaderOrder(keys ...string) *Client {
 	c.Transport.WrapRoundTripFunc(func(rt http.RoundTripper) HttpRoundTripFunc {
 		return func(req *http.Request) (resp *http.Response, err error) {
 			if req.Header == nil {

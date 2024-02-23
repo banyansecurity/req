@@ -5,9 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"github.com/imroc/req/v3/internal/header"
-	"github.com/imroc/req/v3/internal/tests"
-	"golang.org/x/net/publicsuffix"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +14,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/imroc/req/v3/internal/header"
+	"github.com/imroc/req/v3/internal/tests"
+	"golang.org/x/net/publicsuffix"
 )
 
 func TestWrapRoundTrip(t *testing.T) {
@@ -647,4 +648,11 @@ func TestCloneCookieJar(t *testing.T) {
 	c2.SetCookieJar(nil)
 	tests.AssertEqual(t, true, c2.cookiejarFactory == nil)
 	tests.AssertEqual(t, true, c2.httpClient.Jar == nil)
+}
+
+func TestEnablePreserveCookie(t *testing.T) {
+	c := tc().EnablePreserveCookie()
+	tests.AssertEqual(t, true, c.Transport.PreserveCookie)
+	c.DisablePreserveCookie()
+	tests.AssertEqual(t, false, c.Transport.PreserveCookie)
 }

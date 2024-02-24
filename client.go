@@ -1154,6 +1154,18 @@ func (c *Client) SetTLSFingerprintRandomized() *Client {
 	return c.SetTLSFingerprint(utls.HelloRandomized)
 }
 
+// EnablePreserveCookie prevents transport from modifying the request cookie.
+func (c *Client) EnablePreserveCookie() *Client {
+	c.Transport.EnablePreserveCookie()
+	return c
+}
+
+// DisablePreserveCookies allows transport to modify the request cookie.
+func (c *Client) DisablePreserveCookie() *Client {
+	c.Transport.DisablePreserveCookie()
+	return c
+}
+
 // uTLSConn is wrapper of UConn which implements the net.Conn interface.
 type uTLSConn struct {
 	*utls.UConn

@@ -3,11 +3,12 @@ package transport
 import (
 	"context"
 	"crypto/tls"
-	"github.com/imroc/req/v3/internal/dump"
 	"net"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/imroc/req/v3/internal/dump"
 )
 
 // Options is transport's options.
@@ -152,6 +153,12 @@ type Options struct {
 
 	// Debugf is the optional debug function.
 	Debugf func(format string, v ...interface{})
+
+	// PreserveCookie determines whether the cookie header should
+	// preserve original formatting or whether the internal transport
+	// will split a single cookie header into separate header fields
+	// for compression efficiency.
+	PreserveCookie bool
 
 	Dump *dump.Dumper
 }

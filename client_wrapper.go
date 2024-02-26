@@ -3,13 +3,14 @@ package req
 import (
 	"context"
 	"crypto/tls"
-	"github.com/imroc/req/v3/http2"
-	utls "github.com/refraction-networking/utls"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/imroc/req/v3/http2"
+	utls "github.com/refraction-networking/utls"
 )
 
 // WrapRoundTrip is a global wrapper methods which delegated
@@ -419,7 +420,7 @@ func SetCommonHeaderOrder(keys ...string) *Client {
 // SetCommonPseudoHeaderOder is a global wrapper methods which delegated
 // to the default client's Client.SetCommonPseudoHeaderOder.
 func SetCommonPseudoHeaderOder(keys ...string) *Client {
-	return defaultClient.SetCommonPseudoHeaderOder(keys...)
+	return defaultClient.SetCommonPseudoHeaderOrder(keys...)
 }
 
 // SetHTTP2SettingsFrame is a global wrapper methods which delegated

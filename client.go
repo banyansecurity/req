@@ -898,18 +898,18 @@ func (c *Client) SetCommonHeaderOrder(keys ...string) *Client {
 	return c
 }
 
-// SetCommonPseudoHeaderOder set the order of the pseudo http header requests fired
+// SetCommonPseudoHeaderOrder set the order of the pseudo http header requests fired
 // from the client (case-insensitive).
 // Note this is only valid for http2 and http3.
 // For example:
 //
-//	client.SetCommonPseudoHeaderOder(
+//	client.SetCommonPseudoHeaderOrder(
 //	    ":scheme",
 //	    ":authority",
 //	    ":path",
 //	    ":method",
 //	)
-func (c *Client) SetCommonPseudoHeaderOder(keys ...string) *Client {
+func (c *Client) SetCommonPseudoHeaderOrder(keys ...string) *Client {
 	c.Transport.WrapRoundTripFunc(func(rt http.RoundTripper) HttpRoundTripFunc {
 		return func(req *http.Request) (resp *http.Response, err error) {
 			if req.Header == nil {
@@ -1207,6 +1207,63 @@ func (c *Client) SetTLSFingerprint(clientHelloID utls.ClientHelloID) *Client {
 			InsecureSkipVerify: c.GetTLSClientConfig().InsecureSkipVerify,
 		}
 		uconn := &uTLSConn{utls.UClient(plainConn, utlsConfig, clientHelloID)}
+		err = uconn.HandshakeContext(ctx)
+		if err != nil {
+			return
+		}
+		cs := uconn.Conn.ConnectionState()
+		conn = uconn
+		tlsState = &tls.ConnectionState{
+			Version:                     cs.Version,
+			HandshakeComplete:           cs.HandshakeComplete,
+			DidResume:                   cs.DidResume,
+			CipherSuite:                 cs.CipherSuite,
+			NegotiatedProtocol:          cs.NegotiatedProtocol,
+			NegotiatedProtocolIsMutual:  cs.NegotiatedProtocolIsMutual,
+			ServerName:                  cs.ServerName,
+			PeerCertificates:            cs.PeerCertificates,
+			VerifiedChains:              cs.VerifiedChains,
+			SignedCertificateTimestamps: cs.SignedCertificateTimestamps,
+			OCSPResponse:                cs.OCSPResponse,
+			TLSUnique:                   cs.TLSUnique,
+		}
+		return
+	}
+	c.Transport.SetTLSHandshake(fn)
+	return c
+}
+
+// SetCustomTLSFingerprint allows setting a TLS fingerprint from
+// raw TLS Client Hello bytes.
+func (c *Client) SetCustomTLSFingerprint(rawClientHello []byte) *Client {
+	fn := func(ctx context.Context, addr string, plainConn net.Conn) (conn net.Conn, tlsState *tls.ConnectionState, err error) {
+		colonPos := strings.LastIndex(addr, ":")
+		if colonPos == -1 {
+			colonPos = len(addr)
+		}
+
+		var (
+			hostname   = addr[:colonPos]
+			utlsConfig = &utls.Config{
+				ServerName:                         hostname,
+				RootCAs:                            c.GetTLSClientConfig().RootCAs,
+				NextProtos:                         c.GetTLSClientConfig().NextProtos,
+				InsecureSkipVerify:                 c.GetTLSClientConfig().InsecureSkipVerify,
+				PreferSkipResumptionOnNilExtension: true,
+			}
+			uconn         = &uTLSConn{utls.UClient(plainConn, utlsConfig, utls.HelloCustom)}
+			fingerprinter = &utls.Fingerprinter{}
+		)
+		generatedSpec, err := fingerprinter.FingerprintClientHello(rawClientHello)
+		if err != nil {
+			return
+		}
+
+		err = uconn.ApplyPreset(generatedSpec)
+		if err != nil {
+			return
+		}
+
 		err = uconn.HandshakeContext(ctx)
 		if err != nil {
 			return

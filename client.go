@@ -1245,10 +1245,11 @@ func (c *Client) SetCustomTLSFingerprint(rawClientHello []byte) *Client {
 		var (
 			hostname   = addr[:colonPos]
 			utlsConfig = &utls.Config{
-				ServerName:         hostname,
-				RootCAs:            c.GetTLSClientConfig().RootCAs,
-				NextProtos:         c.GetTLSClientConfig().NextProtos,
-				InsecureSkipVerify: c.GetTLSClientConfig().InsecureSkipVerify,
+				ServerName:                         hostname,
+				RootCAs:                            c.GetTLSClientConfig().RootCAs,
+				NextProtos:                         c.GetTLSClientConfig().NextProtos,
+				InsecureSkipVerify:                 c.GetTLSClientConfig().InsecureSkipVerify,
+				PreferSkipResumptionOnNilExtension: true,
 			}
 			uconn         = &uTLSConn{utls.UClient(plainConn, utlsConfig, utls.HelloCustom)}
 			fingerprinter = &utls.Fingerprinter{}

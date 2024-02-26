@@ -32,6 +32,33 @@ var (
 		},
 	}
 
+	chromeCustomHttp2Settings = []http2.Setting{
+		{
+			ID:  http2.SettingHeaderTableSize,
+			Val: 65536,
+		},
+		{
+			ID:  http2.SettingEnablePush,
+			Val: 0,
+		},
+		{
+			ID:  http2.SettingMaxConcurrentStreams,
+			Val: 1000,
+		},
+		// TODO: This seems to break custom client hellos for Chrome. As far as I
+		// can tell, this seems to cause a HTTP 206 flow to begin which breaks
+		// proxying.
+		//
+		// {
+		// 	ID:  http2.SettingInitialWindowSize,
+		// 	Val: 6291456,
+		// },
+		{
+			ID:  http2.SettingMaxHeaderListSize,
+			Val: 262144,
+		},
+	}
+
 	chromePseudoHeaderOrder = []string{
 		":method",
 		":authority",
@@ -101,7 +128,7 @@ func (c *Client) ImpersonateCustomChrome(hdrs http.Header, rawClientHello []byte
 	commonHeaders := mergeHeaders(chromeHeaders, hdrs)
 	c.
 		SetCustomTLSFingerprint(rawClientHello).
-		SetHTTP2SettingsFrame(chromeHttp2Settings...).
+		SetHTTP2SettingsFrame(chromeCustomHttp2Settings...).
 		SetHTTP2ConnectionFlow(15663105).
 		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
 		SetCommonHeaderOrder(chromeHeaderOrder...).

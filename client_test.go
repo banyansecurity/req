@@ -661,3 +661,10 @@ func TestCloneCookieJar(t *testing.T) {
 	tests.AssertEqual(t, true, c2.cookiejarFactory == nil)
 	tests.AssertEqual(t, true, c2.httpClient.Jar == nil)
 }
+
+func TestEnablePreserveCookie(t *testing.T) {
+	c := tc().EnablePreserveCookie()
+	tests.AssertEqual(t, true, c.Transport.PreserveCookie)
+	c.DisablePreserveCookie()
+	tests.AssertEqual(t, false, c.Transport.PreserveCookie)
+}

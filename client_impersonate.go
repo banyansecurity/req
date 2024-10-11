@@ -1,6 +1,9 @@
 package req
 
 import (
+	"maps"
+	"net/http"
+
 	"github.com/imroc/req/v3/http2"
 	utls "github.com/refraction-networking/utls"
 )
@@ -23,6 +26,33 @@ var (
 			ID:  http2.SettingInitialWindowSize,
 			Val: 6291456,
 		},
+		{
+			ID:  http2.SettingMaxHeaderListSize,
+			Val: 262144,
+		},
+	}
+
+	chromeCustomHttp2Settings = []http2.Setting{
+		{
+			ID:  http2.SettingHeaderTableSize,
+			Val: 65536,
+		},
+		{
+			ID:  http2.SettingEnablePush,
+			Val: 0,
+		},
+		{
+			ID:  http2.SettingMaxConcurrentStreams,
+			Val: 1000,
+		},
+		// TODO: This seems to break custom client hellos for Chrome. As far as I
+		// can tell, this seems to cause a HTTP 206 flow to begin which breaks
+		// proxying.
+		//
+		// {
+		// 	ID:  http2.SettingInitialWindowSize,
+		// 	Val: 6291456,
+		// },
 		{
 			ID:  http2.SettingMaxHeaderListSize,
 			Val: 262144,
@@ -71,6 +101,7 @@ var (
 		"sec-fetch-dest":            "document",
 		"accept-language":           "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7,it;q=0.6",
 	}
+
 	chromeHeaderPriority = http2.PriorityParam{
 		StreamDep: 0,
 		Exclusive: true,
@@ -84,9 +115,24 @@ func (c *Client) ImpersonateChrome() *Client {
 		SetTLSFingerprint(utls.HelloChrome_Auto). // Chrome 106~109 shares the same tls fingerprint.
 		SetHTTP2SettingsFrame(chromeHttp2Settings...).
 		SetHTTP2ConnectionFlow(15663105).
-		SetCommonPseudoHeaderOder(chromePseudoHeaderOrder...).
+		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
 		SetCommonHeaderOrder(chromeHeaderOrder...).
 		SetCommonHeaders(chromeHeaders).
+		SetHTTP2HeaderPriority(chromeHeaderPriority)
+	return c
+}
+
+// ImpersonateCustomChrome impersonates a given Chrome fingerprint.
+// We replace any common headers with actual headers from the client if available.
+func (c *Client) ImpersonateCustomChrome(hdrs http.Header, rawClientHello []byte) *Client {
+	commonHeaders := mergeHeaders(chromeHeaders, hdrs)
+	c.
+		SetCustomTLSFingerprint(rawClientHello).
+		SetHTTP2SettingsFrame(chromeCustomHttp2Settings...).
+		SetHTTP2ConnectionFlow(15663105).
+		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
+		SetCommonHeaderOrder(chromeHeaderOrder...).
+		SetCommonHeaders(commonHeaders).
 		SetHTTP2HeaderPriority(chromeHeaderPriority)
 	return c
 }
@@ -98,6 +144,10 @@ var (
 			Val: 65536,
 		},
 		{
+			ID:  http2.SettingEnablePush,
+			Val: 0,
+		},
+		{
 			ID:  http2.SettingInitialWindowSize,
 			Val: 131072,
 		},
@@ -106,6 +156,7 @@ var (
 			Val: 16384,
 		},
 	}
+
 	firefoxPriorityFrames = []http2.PriorityFrame{
 		{
 			StreamID: 3,
@@ -156,12 +207,14 @@ var (
 			},
 		},
 	}
+
 	firefoxPseudoHeaderOrder = []string{
 		":method",
 		":path",
 		":authority",
 		":scheme",
 	}
+
 	firefoxHeaderOrder = []string{
 		"user-agent",
 		"accept",
@@ -176,6 +229,7 @@ var (
 		"sec-fetch-user",
 		"te",
 	}
+
 	firefoxHeaders = map[string]string{
 		"user-agent":                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:105.0) Gecko/20100101 Firefox/105.0",
 		"accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -187,6 +241,7 @@ var (
 		"sec-fetch-user":            "?1",
 		//"te":                        "trailers",
 	}
+
 	firefoxHeaderPriority = http2.PriorityParam{
 		StreamDep: 13,
 		Exclusive: false,
@@ -201,9 +256,25 @@ func (c *Client) ImpersonateFirefox() *Client {
 		SetHTTP2SettingsFrame(firefoxHttp2Settings...).
 		SetHTTP2ConnectionFlow(12517377).
 		SetHTTP2PriorityFrames(firefoxPriorityFrames...).
-		SetCommonPseudoHeaderOder(firefoxPseudoHeaderOrder...).
+		SetCommonPseudoHeaderOrder(firefoxPseudoHeaderOrder...).
 		SetCommonHeaderOrder(firefoxHeaderOrder...).
 		SetCommonHeaders(firefoxHeaders).
+		SetHTTP2HeaderPriority(firefoxHeaderPriority)
+	return c
+}
+
+// ImpersonateCustomFirefox impersonates a given Firefox fingerprint.
+// We replace any common headers with actual headers from the client if available.
+func (c *Client) ImpersonateCustomFirefox(hdrs http.Header, rawClientHello []byte) *Client {
+	commonHeaders := mergeHeaders(firefoxHeaders, hdrs)
+	c.
+		SetCustomTLSFingerprint(rawClientHello).
+		SetHTTP2SettingsFrame(firefoxHttp2Settings...).
+		SetHTTP2ConnectionFlow(12517377).
+		SetHTTP2PriorityFrames(firefoxPriorityFrames...).
+		SetCommonPseudoHeaderOrder(firefoxPseudoHeaderOrder...).
+		SetCommonHeaderOrder(firefoxHeaderOrder...).
+		SetCommonHeaders(commonHeaders).
 		SetHTTP2HeaderPriority(firefoxHeaderPriority)
 	return c
 }
@@ -261,9 +332,36 @@ func (c *Client) ImpersonateSafari() *Client {
 		SetTLSFingerprint(utls.HelloSafari_Auto).
 		SetHTTP2SettingsFrame(safariHttp2Settings...).
 		SetHTTP2ConnectionFlow(10485760).
-		SetCommonPseudoHeaderOder(safariPseudoHeaderOrder...).
+		SetCommonPseudoHeaderOrder(safariPseudoHeaderOrder...).
 		SetCommonHeaderOrder(safariHeaderOrder...).
 		SetCommonHeaders(safariHeaders).
 		SetHTTP2HeaderPriority(safariHeaderPriority)
 	return c
+}
+
+// ImpersonateCustomSafari impersonates a given Safari fingerprint.
+// We replace any common headers with actual headers from the client if available.
+func (c *Client) ImpersonateCustomSafari(hdrs http.Header, rawClientHello []byte) *Client {
+	commonHeaders := mergeHeaders(safariHeaders, hdrs)
+	c.
+		SetTLSFingerprint(utls.HelloSafari_16_0).
+		SetHTTP2SettingsFrame(safariHttp2Settings...).
+		SetHTTP2ConnectionFlow(10485760).
+		SetCommonPseudoHeaderOrder(safariPseudoHeaderOrder...).
+		SetCommonHeaderOrder(safariHeaderOrder...).
+		SetCommonHeaders(commonHeaders).
+		SetHTTP2HeaderPriority(safariHeaderPriority)
+	return c
+}
+
+// mergeHeaders is a helper function to merge expected with actual browser headers.
+func mergeHeaders(common map[string]string, actual http.Header) map[string]string {
+	headers := make(map[string]string)
+	maps.Copy(headers, common)
+	for k := range actual {
+		if v := actual.Get(k); v != "" {
+			headers[k] = v
+		}
+	}
+	return headers
 }

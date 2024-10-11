@@ -20,6 +20,21 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+func TestRetryCancelledContext(t *testing.T) {
+	cancelledCtx, done := context.WithCancel(context.Background())
+	done()
+
+	client := tc().
+		SetCommonRetryCount(2).
+		SetCommonRetryBackoffInterval(1*time.Second, 5*time.Second)
+
+	res, err := client.R().SetContext(cancelledCtx).Get("/")
+
+	tests.AssertEqual(t, 0, res.Request.RetryAttempt)
+	tests.AssertNotNil(t, err)
+	tests.AssertErrorContains(t, err, "context canceled")
+}
+
 func TestWrapRoundTrip(t *testing.T) {
 	i, j, a, b := 0, 0, 0, 0
 	c := tc().WrapRoundTripFunc(func(rt RoundTripper) RoundTripFunc {
@@ -227,10 +242,7 @@ func TestAutoDecode(t *testing.T) {
 	assertSuccess(t, resp, err)
 	tests.AssertEqual(t, "我是roc", resp.String())
 	resp, err = c.SetAutoDecodeContentTypeFunc(func(contentType string) bool {
-		if strings.Contains(contentType, "text") {
-			return true
-		}
-		return false
+		return strings.Contains(contentType, "text")
 	}).R().Get("/gbk")
 	assertSuccess(t, resp, err)
 	tests.AssertEqual(t, "我是roc", resp.String())

@@ -25,20 +25,21 @@ import (
 // req client. Request provides lots of chainable settings which can
 // override client level settings.
 type Request struct {
-	PathParams   map[string]string
-	QueryParams  urlpkg.Values
-	FormData     urlpkg.Values
-	Headers      http.Header
-	Cookies      []*http.Cookie
-	Result       interface{}
-	Error        interface{}
-	RawRequest   *http.Request
-	StartTime    time.Time
-	RetryAttempt int
-	RawURL       string // read only
-	Method       string
-	Body         []byte
-	GetBody      GetContentFunc
+	PathParams      map[string]string
+	QueryParams     urlpkg.Values
+	FormData        urlpkg.Values
+	OrderedFormData []string
+	Headers         http.Header
+	Cookies         []*http.Cookie
+	Result          interface{}
+	Error           interface{}
+	RawRequest      *http.Request
+	StartTime       time.Time
+	RetryAttempt    int
+	RawURL          string // read only
+	Method          string
+	Body            []byte
+	GetBody         GetContentFunc
 	// URL is an auto-generated field, and is nil in request middleware (OnBeforeRequest),
 	// consider using RawURL if you want, it's not nil in client middleware (WrapRoundTripFunc)
 	URL *urlpkg.URL
@@ -184,6 +185,12 @@ func (r *Request) SetFormData(data map[string]string) *Request {
 	for k, v := range data {
 		r.FormData.Set(k, v)
 	}
+	return r
+}
+
+// SetOrderedFormData set the ordered form data from key-values pairs.
+func (r *Request) SetOrderedFormData(kvs ...string) *Request {
+	r.OrderedFormData = append(r.OrderedFormData, kvs...)
 	return r
 }
 
@@ -635,7 +642,7 @@ func (r *Request) do() (resp *Response, err error) {
 		if resp == nil {
 			resp = &Response{Request: r}
 		}
-		if err != nil {
+		if err != nil && resp.Err == nil {
 			resp.Err = err
 		}
 	}()
@@ -661,13 +668,17 @@ func (r *Request) do() (resp *Response, err error) {
 			resp, err = r.client.roundTrip(r)
 		}
 
+		// Determine if the error is from a canceled context.
+		// Store it here so it doesn't get lost when processing the AfterResponse middleware.
+		contextCanceled := errors.Is(err, context.Canceled)
+
 		for _, f := range r.afterResponse {
 			if err = f(r.client, resp); err != nil {
 				return
 			}
 		}
 
-		if r.retryOption == nil || (r.RetryAttempt >= r.retryOption.MaxRetries && r.retryOption.MaxRetries >= 0) { // absolutely cannot retry.
+		if contextCanceled || r.retryOption == nil || (r.RetryAttempt >= r.retryOption.MaxRetries && r.retryOption.MaxRetries >= 0) { // absolutely cannot retry.
 			return
 		}
 
@@ -948,6 +959,18 @@ func (r *Request) SetContext(ctx context.Context) *Request {
 		r.ctx = ctx
 	}
 	return r
+}
+
+// SetContextData sets the key-value pair data for current Request, so you
+// can access some extra context info for current Request in hook or middleware.
+func (r *Request) SetContextData(key, val any) *Request {
+	r.ctx = context.WithValue(r.Context(), key, val)
+	return r
+}
+
+// GetContextData returns the context data of specified key, which set by SetContextData.
+func (r *Request) GetContextData(key any) any {
+	return r.Context().Value(key)
 }
 
 // DisableAutoReadResponse disable read response body automatically (enabled by default).

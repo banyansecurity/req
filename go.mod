@@ -1,6 +1,10 @@
 module github.com/imroc/req/v3
 
-go 1.22.0
+go 1.23
+
+toolchain go1.23.2
+
+replace github.com/refraction-networking/utls v1.6.7 => github.com/banyansecurity/utls v0.0.0-20241014170856-c74adf0f8e1b
 
 require (
 	github.com/andybalholm/brotli v1.1.0
@@ -14,7 +18,7 @@ require (
 )
 
 require (
-	github.com/cloudflare/circl v1.4.0 // indirect
+	github.com/cloudflare/circl v1.5.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/pprof v0.0.0-20240910150728-a0b0bb1d4134 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

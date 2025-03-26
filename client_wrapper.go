@@ -57,6 +57,12 @@ func SetCommonFormData(data map[string]string) *Client {
 	return defaultClient.SetCommonFormData(data)
 }
 
+// SetMultipartBoundaryFunc is a global wrapper methods which delegated
+// to the default client's Client.SetMultipartBoundaryFunc.
+func SetMultipartBoundaryFunc(fn func() string) *Client {
+	return defaultClient.SetMultipartBoundaryFunc(fn)
+}
+
 // SetBaseURL is a global wrapper methods which delegated
 // to the default client's Client.SetBaseURL.
 func SetBaseURL(u string) *Client {
@@ -481,6 +487,18 @@ func SetHTTP2WriteByteTimeout(timeout time.Duration) *Client {
 // to the default client's Client.ImpersonateChrome.
 func ImpersonateChrome() *Client {
 	return defaultClient.ImpersonateChrome()
+}
+
+// ImpersonateChrome is a global wrapper methods which delegated
+// to the default client's Client.ImpersonateChrome.
+func ImpersonateFirefox() *Client {
+	return defaultClient.ImpersonateFirefox()
+}
+
+// ImpersonateChrome is a global wrapper methods which delegated
+// to the default client's Client.ImpersonateChrome.
+func ImpersonateSafari() *Client {
+	return defaultClient.ImpersonateFirefox()
 }
 
 // SetCommonContentType is a global wrapper methods which delegated

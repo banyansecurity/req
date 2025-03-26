@@ -60,6 +60,7 @@ type Client struct {
 	jsonUnmarshal           func(data []byte, v interface{}) error
 	xmlMarshal              func(v interface{}) ([]byte, error)
 	xmlUnmarshal            func(data []byte, v interface{}) error
+	multipartBoundaryFunc   func() string
 	outputDirectory         string
 	scheme                  string
 	log                     Logger
@@ -240,6 +241,17 @@ func (c *Client) SetCommonFormData(data map[string]string) *Client {
 	return c
 }
 
+// SetMultipartBoundaryFunc overrides the default function used to generate
+// boundary delimiters for "multipart/form-data" requests with a customized one,
+// which returns a boundary delimiter (without the two leading hyphens).
+//
+// Boundary delimiter may only contain certain ASCII characters, and must be
+// non-empty and at most 70 bytes long (see RFC 2046, Section 5.1.1).
+func (c *Client) SetMultipartBoundaryFunc(fn func() string) *Client {
+	c.multipartBoundaryFunc = fn
+	return c
+}
+
 // SetBaseURL set the default base URL, will be used if request URL is
 // a relative URL.
 func (c *Client) SetBaseURL(u string) *Client {
@@ -310,20 +322,10 @@ func (c *Client) GetTLSClientConfig() *tls.Config {
 	return c.TLSClientConfig
 }
 
-func (c *Client) defaultCheckRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) >= 10 {
-		return errors.New("stopped after 10 redirects")
-	}
-	if c.DebugLog {
-		c.log.Debugf("<redirect> %s %s", req.Method, req.URL.String())
-	}
-	return nil
-}
-
 // SetRedirectPolicy set the RedirectPolicy which controls the behavior of receiving redirect
 // responses (usually responses with 301 and 302 status code), see the predefined
-// AllowedDomainRedirectPolicy, AllowedHostRedirectPolicy, MaxRedirectPolicy, NoRedirectPolicy,
-// SameDomainRedirectPolicy and SameHostRedirectPolicy.
+// AllowedDomainRedirectPolicy, AllowedHostRedirectPolicy, DefaultRedirectPolicy, MaxRedirectPolicy,
+// NoRedirectPolicy, SameDomainRedirectPolicy and SameHostRedirectPolicy.
 func (c *Client) SetRedirectPolicy(policies ...RedirectPolicy) *Client {
 	if len(policies) == 0 {
 		return c
@@ -1623,7 +1625,7 @@ func C() *Client {
 		xmlUnmarshal:          xml.Unmarshal,
 		cookiejarFactory:      memoryCookieJarFactory,
 	}
-	httpClient.CheckRedirect = c.defaultCheckRedirect
+	c.SetRedirectPolicy(DefaultRedirectPolicy())
 	c.initCookieJar()
 
 	c.initTransport()

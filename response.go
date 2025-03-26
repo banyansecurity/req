@@ -1,12 +1,13 @@
 package req
 
 import (
-	"github.com/imroc/req/v3/internal/header"
-	"github.com/imroc/req/v3/internal/util"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/imroc/req/v3/internal/header"
+	"github.com/imroc/req/v3/internal/util"
 )
 
 // Response is the http response.
@@ -193,6 +194,16 @@ func (r *Response) Unmarshal(v interface{}) error {
 // to response `Content-Type`.
 func (r *Response) Into(v interface{}) error {
 	return r.Unmarshal(v)
+}
+
+// Set response body with byte array content
+func (r *Response) SetBody(body []byte) {
+	r.body = body
+}
+
+// Set response body with string content
+func (r *Response) SetBodyString(body string) {
+	r.body = []byte(body)
 }
 
 // Bytes return the response body as []bytes that have already been read, could be

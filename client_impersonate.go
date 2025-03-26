@@ -1,12 +1,57 @@
 package req
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"maps"
+	"math/big"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/imroc/req/v3/http2"
 	utls "github.com/refraction-networking/utls"
 )
+
+// Identical for both Blink-based browsers (Chrome, Chromium, etc.) and WebKit-based browsers (Safari, etc.)
+// Blink implementation: https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/platform/network/form_data_encoder.cc;drc=1d694679493c7b2f7b9df00e967b4f8699321093;l=130
+// WebKit implementation: https://github.com/WebKit/WebKit/blob/47eea119fe9462721e5cc75527a4280c6d5f5214/Source/WebCore/platform/network/FormDataBuilder.cpp#L120
+func webkitMultipartBoundaryFunc() string {
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789AB"
+
+	sb := strings.Builder{}
+	sb.WriteString("----WebKitFormBoundary")
+
+	for i := 0; i < 16; i++ {
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters)-1)))
+		if err != nil {
+			panic(err)
+		}
+
+		sb.WriteByte(letters[index.Int64()])
+	}
+
+	return sb.String()
+}
+
+// Firefox implementation: https://searchfox.org/mozilla-central/source/dom/html/HTMLFormSubmission.cpp#355
+func firefoxMultipartBoundaryFunc() string {
+	sb := strings.Builder{}
+	sb.WriteString("-------------------------")
+
+	for i := 0; i < 3; i++ {
+		var b [8]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			panic(err)
+		}
+		u32 := binary.LittleEndian.Uint32(b[:])
+		s := strconv.FormatUint(uint64(u32), 10)
+
+		sb.WriteString(s)
+	}
+
+	return sb.String()
+}
 
 var (
 	chromeHttp2Settings = []http2.Setting{
@@ -89,17 +134,17 @@ var (
 	chromeHeaders = map[string]string{
 		"pragma":                    "no-cache",
 		"cache-control":             "no-cache",
-		"sec-ch-ua":                 `"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"`,
+		"sec-ch-ua":                 `"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"`,
 		"sec-ch-ua-mobile":          "?0",
 		"sec-ch-ua-platform":        `"macOS"`,
 		"upgrade-insecure-requests": "1",
-		"user-agent":                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
-		"accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+		"user-agent":                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		"accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
 		"sec-fetch-site":            "none",
 		"sec-fetch-mode":            "navigate",
 		"sec-fetch-user":            "?1",
 		"sec-fetch-dest":            "document",
-		"accept-language":           "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7,it;q=0.6",
+		"accept-language":           "zh-CN,zh;q=0.9",
 	}
 
 	chromeHeaderPriority = http2.PriorityParam{
@@ -109,16 +154,17 @@ var (
 	}
 )
 
-// ImpersonateChrome impersonates Chrome browser (version 109).
+// ImpersonateChrome impersonates Chrome browser (version 120).
 func (c *Client) ImpersonateChrome() *Client {
 	c.
-		SetTLSFingerprint(utls.HelloChrome_Auto). // Chrome 106~109 shares the same tls fingerprint.
+		SetTLSFingerprint(utls.HelloChrome_120).
 		SetHTTP2SettingsFrame(chromeHttp2Settings...).
 		SetHTTP2ConnectionFlow(15663105).
 		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
 		SetCommonHeaderOrder(chromeHeaderOrder...).
 		SetCommonHeaders(chromeHeaders).
-		SetHTTP2HeaderPriority(chromeHeaderPriority)
+		SetHTTP2HeaderPriority(chromeHeaderPriority).
+		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
 	return c
 }
 
@@ -231,7 +277,7 @@ var (
 	}
 
 	firefoxHeaders = map[string]string{
-		"user-agent":                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:105.0) Gecko/20100101 Firefox/105.0",
+		"user-agent":                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
 		"accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
 		"accept-language":           "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
 		"upgrade-insecure-requests": "1",
@@ -249,17 +295,18 @@ var (
 	}
 )
 
-// ImpersonateFirefox impersonates Firefox browser (version 105).
+// ImpersonateFirefox impersonates Firefox browser (version 120).
 func (c *Client) ImpersonateFirefox() *Client {
 	c.
-		SetTLSFingerprint(utls.HelloFirefox_Auto).
+		SetTLSFingerprint(utls.HelloFirefox_120).
 		SetHTTP2SettingsFrame(firefoxHttp2Settings...).
 		SetHTTP2ConnectionFlow(12517377).
 		SetHTTP2PriorityFrames(firefoxPriorityFrames...).
 		SetCommonPseudoHeaderOrder(firefoxPseudoHeaderOrder...).
 		SetCommonHeaderOrder(firefoxHeaderOrder...).
 		SetCommonHeaders(firefoxHeaders).
-		SetHTTP2HeaderPriority(firefoxHeaderPriority)
+		SetHTTP2HeaderPriority(firefoxHeaderPriority).
+		SetMultipartBoundaryFunc(firefoxMultipartBoundaryFunc)
 	return c
 }
 
@@ -326,16 +373,17 @@ var (
 	}
 )
 
-// ImpersonateSafari impersonates Safari browser (version 16).
+// ImpersonateSafari impersonates Safari browser (version 16.6).
 func (c *Client) ImpersonateSafari() *Client {
 	c.
-		SetTLSFingerprint(utls.HelloSafari_Auto).
+		SetTLSFingerprint(utls.HelloSafari_16_0).
 		SetHTTP2SettingsFrame(safariHttp2Settings...).
 		SetHTTP2ConnectionFlow(10485760).
 		SetCommonPseudoHeaderOrder(safariPseudoHeaderOrder...).
 		SetCommonHeaderOrder(safariHeaderOrder...).
 		SetCommonHeaders(safariHeaders).
-		SetHTTP2HeaderPriority(safariHeaderPriority)
+		SetHTTP2HeaderPriority(safariHeaderPriority).
+		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
 	return c
 }
 

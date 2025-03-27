@@ -157,7 +157,7 @@ var (
 // ImpersonateChrome impersonates Chrome browser (version 120).
 func (c *Client) ImpersonateChrome() *Client {
 	c.
-		SetTLSFingerprint(utls.HelloChrome_120).
+		SetTLSFingerprint(utls.HelloChrome_131).
 		SetHTTP2SettingsFrame(chromeHttp2Settings...).
 		SetHTTP2ConnectionFlow(15663105).
 		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).

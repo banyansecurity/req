@@ -157,7 +157,7 @@ var (
 // ImpersonateChrome impersonates Chrome browser (version 120).
 func (c *Client) ImpersonateChrome() *Client {
 	c.
-		SetTLSFingerprint(utls.HelloChrome_120).
+		SetTLSFingerprint(utls.HelloChrome_131).
 		SetHTTP2SettingsFrame(chromeHttp2Settings...).
 		SetHTTP2ConnectionFlow(15663105).
 		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
@@ -179,7 +179,8 @@ func (c *Client) ImpersonateCustomChrome(hdrs http.Header, rawClientHello []byte
 		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
 		SetCommonHeaderOrder(chromeHeaderOrder...).
 		SetCommonHeaders(commonHeaders).
-		SetHTTP2HeaderPriority(chromeHeaderPriority)
+		SetHTTP2HeaderPriority(chromeHeaderPriority).
+		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
 	return c
 }
 
@@ -322,7 +323,8 @@ func (c *Client) ImpersonateCustomFirefox(hdrs http.Header, rawClientHello []byt
 		SetCommonPseudoHeaderOrder(firefoxPseudoHeaderOrder...).
 		SetCommonHeaderOrder(firefoxHeaderOrder...).
 		SetCommonHeaders(commonHeaders).
-		SetHTTP2HeaderPriority(firefoxHeaderPriority)
+		SetHTTP2HeaderPriority(firefoxHeaderPriority).
+		SetMultipartBoundaryFunc(firefoxMultipartBoundaryFunc)
 	return c
 }
 
@@ -398,7 +400,8 @@ func (c *Client) ImpersonateCustomSafari(hdrs http.Header, rawClientHello []byte
 		SetCommonPseudoHeaderOrder(safariPseudoHeaderOrder...).
 		SetCommonHeaderOrder(safariHeaderOrder...).
 		SetCommonHeaders(commonHeaders).
-		SetHTTP2HeaderPriority(safariHeaderPriority)
+		SetHTTP2HeaderPriority(safariHeaderPriority).
+		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
 	return c
 }
 

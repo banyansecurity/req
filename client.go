@@ -1267,19 +1267,40 @@ func (c *Client) SetCustomTLSFingerprint(rawClientHello []byte) *Client {
 
 		var (
 			hostname   = addr[:colonPos]
+			tlsConfig  = c.GetTLSClientConfig()
 			utlsConfig = &utls.Config{
 				ServerName:                         hostname,
-				RootCAs:                            c.GetTLSClientConfig().RootCAs,
-				NextProtos:                         c.GetTLSClientConfig().NextProtos,
-				InsecureSkipVerify:                 c.GetTLSClientConfig().InsecureSkipVerify,
+				Rand:                               tlsConfig.Rand,
+				Time:                               tlsConfig.Time,
+				RootCAs:                            tlsConfig.RootCAs,
+				NextProtos:                         tlsConfig.NextProtos,
+				ClientCAs:                          tlsConfig.ClientCAs,
+				InsecureSkipVerify:                 tlsConfig.InsecureSkipVerify,
+				CipherSuites:                       tlsConfig.CipherSuites,
+				SessionTicketsDisabled:             tlsConfig.SessionTicketsDisabled,
+				MinVersion:                         tlsConfig.MinVersion,
+				MaxVersion:                         tlsConfig.MaxVersion,
+				DynamicRecordSizingDisabled:        tlsConfig.DynamicRecordSizingDisabled,
+				KeyLogWriter:                       tlsConfig.KeyLogWriter,
+				OmitEmptyPsk:                       true,
 				PreferSkipResumptionOnNilExtension: true,
+				ClientSessionCache:                 utls.NewLRUClientSessionCache(0),
+				Renegotiation:                      utls.RenegotiateOnceAsClient,
 			}
 			uconn         = &uTLSConn{utls.UClient(plainConn, utlsConfig, utls.HelloCustom)}
-			fingerprinter = &utls.Fingerprinter{}
+			fingerprinter = &utls.Fingerprinter{
+				RealPSKResumption: true,
+			}
 		)
 		generatedSpec, err := fingerprinter.FingerprintClientHello(rawClientHello)
 		if err != nil {
 			return
+		}
+
+		for i, extension := range generatedSpec.Extensions {
+			if _, ok := extension.(*utls.GREASEEncryptedClientHelloExtension); ok {
+				generatedSpec.Extensions[i] = utls.BoringGREASEECH()
+			}
 		}
 
 		err = uconn.ApplyPreset(generatedSpec)

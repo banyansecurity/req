@@ -4,7 +4,7 @@ go 1.24.0
 
 toolchain go1.24.1
 
-replace github.com/refraction-networking/utls v1.6.7 => github.com/banyansecurity/utls v0.0.0-20250326230505-595f7032bbd0
+replace github.com/refraction-networking/utls v1.6.7 => github.com/banyansecurity/utls v0.0.0-20250327234556-5af3e725f005
 
 require (
 	github.com/andybalholm/brotli v1.1.1

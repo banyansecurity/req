@@ -426,7 +426,7 @@ func SetCommonHeaderOrder(keys ...string) *Client {
 // SetCommonPseudoHeaderOder is a global wrapper methods which delegated
 // to the default client's Client.SetCommonPseudoHeaderOder.
 func SetCommonPseudoHeaderOder(keys ...string) *Client {
-	return defaultClient.SetCommonPseudoHeaderOder(keys...)
+	return defaultClient.SetCommonPseudoHeaderOrder(keys...)
 }
 
 // SetHTTP2SettingsFrame is a global wrapper methods which delegated

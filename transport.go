@@ -124,7 +124,7 @@ type Transport struct {
 
 	altSvcJar        altsvc.Jar
 	pendingAltSvcs   map[string]*pendingAltSvc
-	pendingAltSvcsMu sync.Mutex
+	pendingAltSvcsMu sync.RWMutex
 
 	// Force using specific http version
 	forceHttpVersion httpVersion
@@ -503,6 +503,20 @@ func (t *Transport) SetTLSHandshake(fn func(ctx context.Context, addr string, pl
 	return t
 }
 
+// EnablePreserveCookie preserves original request formatting for
+// cookie headers.
+func (t *Transport) EnablePreserveCookie() *Transport {
+	t.PreserveCookie = true
+	return t
+}
+
+// DisablePreserveCookie allows the transport to rewrite headers for
+// compression efficiency.
+func (t *Transport) DisablePreserveCookie() *Transport {
+	t.PreserveCookie = false
+	return t
+}
+
 type pendingAltSvc struct {
 	CurrentIndex int
 	Entries      []*altsvc.AltSvc
@@ -846,7 +860,10 @@ func (t *Transport) checkAltSvc(req *http.Request) (resp *http.Response, err err
 		return
 	}
 	addr := netutil.AuthorityKey(req.URL)
+
+	t.pendingAltSvcsMu.RLock()
 	pas, ok := t.pendingAltSvcs[addr]
+	t.pendingAltSvcsMu.RUnlock()
 	if ok && pas.Transport != nil {
 		pas.Mu.Lock()
 		if pas.Transport != nil {
@@ -862,7 +879,9 @@ func (t *Transport) checkAltSvc(req *http.Request) (resp *http.Response, err err
 				}
 			} else {
 				t.altSvcJar.SetAltSvc(addr, pas.Entries[pas.CurrentIndex])
+				t.pendingAltSvcsMu.Lock()
 				delete(t.pendingAltSvcs, addr)
+				t.pendingAltSvcsMu.Unlock()
 			}
 		}
 		pas.Mu.Unlock()
@@ -2631,16 +2650,40 @@ func (pc *persistConn) mapRoundTripError(req *transportRequest, startBytesWritte
 	return err
 }
 
-// errCallerOwnsConn is an internal sentinel error used when we hand
-// off a writable response.Body to the caller. We use this to prevent
-// closing a net.Conn that is now owned by the caller.
-var errCallerOwnsConn = errors.New("read loop ending; caller owns writable underlying conn")
+var (
+	// errCallerOwnsConn is an internal sentinel error used when we hand
+	// off a writable response.Body to the caller. We use this to prevent
+	// closing a net.Conn that is now owned by the caller.
+	errCallerOwnsConn = errors.New("read loop ending; caller owns writable underlying conn")
+
+	// Hack: errUTLSFatalError happens when a custom parrot advertises some TLS
+	// extensions that we may not fully support. This doesn't always happen but
+	// if it does, we should capture UTLS losing track of session state and can
+	// allow the caller to fallback to the normal parroting path.
+	errUTLSFatalError = errors.New("utls: fatal parrot error")
+)
 
 func (pc *persistConn) readLoop() {
 	closeErr := errReadLoopExiting // default value, if not changed below
 	defer func() {
 		pc.close(closeErr)
 		pc.t.removeIdleConn(pc)
+	}()
+
+	// Hack: See errUTLSFatalError above.
+	defer func() {
+		if r := recover(); r != nil {
+			err := transportReadFromServerError{errUTLSFatalError}
+			closeErr = err
+
+			rc := <-pc.reqch
+			select {
+			case rc.ch <- responseAndError{err: err}:
+			case <-rc.callerGone:
+				return
+			}
+			return
+		}
 	}()
 
 	tryPutIdleConn := func(treq *transportRequest) bool {

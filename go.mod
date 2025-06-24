@@ -2,7 +2,7 @@ module github.com/imroc/req/v3
 
 go 1.24
 
-replace github.com/refraction-networking/utls v1.6.7 => github.com/banyansecurity/utls v0.0.0-20250516183116-0d3c12cd6f56
+replace github.com/refraction-networking/utls v1.7.3 => github.com/banyansecurity/utls v0.0.0-20250516183116-0d3c12cd6f56
 
 require (
 	github.com/andybalholm/brotli v1.1.1

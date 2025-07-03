@@ -298,7 +298,7 @@ func TestSetBodyMarshal(t *testing.T) {
 	}{
 		{ // SetBody with map
 			Set: func(r *Request) {
-				m := map[string]interface{}{
+				m := map[string]any{
 					"username": username,
 				}
 				r.SetBody(&m)
@@ -323,7 +323,7 @@ func TestSetBodyMarshal(t *testing.T) {
 		},
 		{ // SetBodyJsonMarshal with map
 			Set: func(r *Request) {
-				m := map[string]interface{}{
+				m := map[string]any{
 					"username": username,
 				}
 				r.SetBodyJsonMarshal(&m)
@@ -863,7 +863,7 @@ func TestSetFileUploadCheck(t *testing.T) {
 }
 
 func TestUploadMultipart(t *testing.T) {
-	m := make(map[string]interface{})
+	m := make(map[string]any)
 	resp, err := tc().R().
 		SetFile("file", tests.GetTestFilePath("sample-image.png")).
 		SetFiles(map[string]string{"file": tests.GetTestFilePath("sample-file.txt")}).
@@ -930,7 +930,7 @@ func TestSetFile(t *testing.T) {
 	})
 	tests.AssertEqual(t, getTestFileContent(t, filename), resp.Bytes())
 
-	resp, err := tc().SetLogger(nil).R().SetFile("file", "file-not-exists.txt").Post("/file-text")
+	_, err := tc().SetLogger(nil).R().SetFile("file", "file-not-exists.txt").Post("/file-text")
 	tests.AssertErrorContains(t, err, "no such file")
 }
 

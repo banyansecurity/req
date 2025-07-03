@@ -163,7 +163,7 @@ type Options struct {
 	ReadBufferSize int
 
 	// Debugf is the optional debug function.
-	Debugf func(format string, v ...interface{})
+	Debugf func(format string, v ...any)
 
 	// PreserveCookie determines whether the cookie header should
 	// preserve original formatting or whether the internal transport

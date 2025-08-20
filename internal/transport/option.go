@@ -165,6 +165,12 @@ type Options struct {
 	// Debugf is the optional debug function.
 	Debugf func(format string, v ...any)
 
+	// PreserveCookie determines whether the cookie header should
+	// preserve original formatting or whether the internal transport
+	// will split a single cookie header into separate header fields
+	// for compression efficiency.
+	PreserveCookie bool
+
 	Dump *dump.Dumper
 }
 

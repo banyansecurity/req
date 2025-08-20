@@ -860,7 +860,6 @@ func (t *Transport) checkAltSvc(req *http.Request) (resp *http.Response, err err
 		return
 	}
 	addr := netutil.AuthorityKey(req.URL)
-
 	t.pendingAltSvcsMu.RLock()
 	pas, ok := t.pendingAltSvcs[addr]
 	t.pendingAltSvcsMu.RUnlock()

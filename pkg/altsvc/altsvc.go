@@ -23,13 +23,13 @@ func (j *AltSvcJar) GetAltSvc(addr string) *AltSvc {
 	if addr == "" {
 		return nil
 	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
 	as, ok := j.entries[addr]
 	if !ok {
 		return nil
 	}
 	now := time.Now()
-	j.mu.Lock()
-	defer j.mu.Unlock()
 	if as.Expire.Before(now) { // expired
 		delete(j.entries, addr)
 		return nil

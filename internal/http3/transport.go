@@ -121,7 +121,10 @@ var (
 )
 
 // ErrNoCachedConn is returned when Transport.OnlyCachedConn is set
-var ErrNoCachedConn = errors.New("http3: no cached connection was available")
+var (
+	ErrNoCachedConn     = errors.New("http3: no cached connection was available")
+	ErrNilNewClientConn = errors.New("http3: newClientConn is nil")
+)
 
 func (t *Transport) init() error {
 	if t.newClientConn == nil {
@@ -305,6 +308,11 @@ func (t *Transport) AddConn(ctx context.Context, addr string) error {
 }
 
 func (t *Transport) getClient(ctx context.Context, hostname string, onlyCached bool) (rtc *roundTripperWithCount, isReused bool, err error) {
+	t.initOnce.Do(func() { t.initErr = t.init() })
+	if t.initErr != nil {
+		return nil, false, t.initErr
+	}
+
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
@@ -401,6 +409,10 @@ func (t *Transport) dial(ctx context.Context, hostname string) (*quic.Conn, clie
 	conn, err := dial(ctx, hostname, tlsConf, t.QUICConfig)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if t.newClientConn == nil {
+		return nil, nil, ErrNilNewClientConn
 	}
 	return conn, t.newClientConn(conn), nil
 }

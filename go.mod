@@ -6,6 +6,7 @@ replace github.com/refraction-networking/utls v1.8.0 => github.com/banyansecurit
 
 require (
 	github.com/andybalholm/brotli v1.2.0
+	github.com/google/go-querystring v1.1.0
 	github.com/icholy/digest v1.1.0
 	github.com/klauspost/compress v1.18.0
 	github.com/quic-go/qpack v0.5.1

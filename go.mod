@@ -2,7 +2,7 @@ module github.com/imroc/req/v3
 
 go 1.24
 
-replace github.com/refraction-networking/utls v1.8.0 => github.com/banyansecurity/utls v0.0.0-20250801184936-f9c22e314e67
+replace github.com/refraction-networking/utls v1.8.1 => github.com/banyansecurity/utls v0.0.0-20251107181709-4258fbe6b682
 
 require (
 	github.com/andybalholm/brotli v1.2.0
@@ -10,7 +10,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/quic-go/qpack v0.5.1
 	github.com/quic-go/quic-go v0.53.0
-	github.com/refraction-networking/utls v1.8.0
+	github.com/refraction-networking/utls v1.8.1
 	golang.org/x/net v0.41.0
 	golang.org/x/text v0.26.0
 )

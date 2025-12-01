@@ -2,6 +2,8 @@ module github.com/imroc/req/v3
 
 go 1.24.0
 
+replace github.com/refraction-networking/utls v1.8.1 => github.com/banyansecurity/utls v0.0.0-20251107181709-4258fbe6b682
+
 require (
 	github.com/andybalholm/brotli v1.2.0
 	github.com/google/go-querystring v1.1.0

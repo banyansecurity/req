@@ -126,6 +126,8 @@ var (
 	ErrNoCachedConn = errors.New("http3: no cached connection was available")
 	// ErrTransportClosed is returned when attempting to use a closed Transport
 	ErrTransportClosed = errors.New("http3: transport is closed")
+	// ErrNilNewClientConn indicates a failure to generate a new H3 client connection
+	ErrNilNewClientConn = errors.New("http3: newClientConn is nil")
 )
 
 func (t *Transport) init() error {
@@ -317,6 +319,11 @@ func (t *Transport) AddConn(ctx context.Context, addr string) error {
 }
 
 func (t *Transport) getClient(ctx context.Context, hostname string, onlyCached bool) (rtc *roundTripperWithCount, isReused bool, err error) {
+	t.initOnce.Do(func() { t.initErr = t.init() })
+	if t.initErr != nil {
+		return nil, false, t.initErr
+	}
+
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	if t.closed {
@@ -409,6 +416,10 @@ func (t *Transport) dial(ctx context.Context, hostname string) (*quic.Conn, clie
 	conn, err := dial(ctx, hostname, tlsConf, t.QUICConfig)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if t.newClientConn == nil {
+		return nil, nil, ErrNilNewClientConn
 	}
 	return conn, t.newClientConn(conn), nil
 }

@@ -3,7 +3,9 @@ package req
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"maps"
 	"math/big"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -75,6 +77,33 @@ var (
 		},
 	}
 
+	chromeCustomHttp2Settings = []http2.Setting{
+		{
+			ID:  http2.SettingHeaderTableSize,
+			Val: 65536,
+		},
+		{
+			ID:  http2.SettingEnablePush,
+			Val: 0,
+		},
+		{
+			ID:  http2.SettingMaxConcurrentStreams,
+			Val: 1000,
+		},
+		// TODO: This seems to break custom client hellos for Chrome. As far as I
+		// can tell, this seems to cause a HTTP 206 flow to begin which breaks
+		// proxying.
+		//
+		// {
+		// 	ID:  http2.SettingInitialWindowSize,
+		// 	Val: 6291456,
+		// },
+		{
+			ID:  http2.SettingMaxHeaderListSize,
+			Val: 262144,
+		},
+	}
+
 	chromePseudoHeaderOrder = []string{
 		":method",
 		":authority",
@@ -128,12 +157,28 @@ var (
 // ImpersonateChrome impersonates Chrome browser (version 120).
 func (c *Client) ImpersonateChrome() *Client {
 	c.
-		SetTLSFingerprint(utls.HelloChrome_120).
+		SetTLSFingerprint(utls.HelloChrome_131).
 		SetHTTP2SettingsFrame(chromeHttp2Settings...).
 		SetHTTP2ConnectionFlow(15663105).
-		SetCommonPseudoHeaderOder(chromePseudoHeaderOrder...).
+		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
 		SetCommonHeaderOrder(chromeHeaderOrder...).
 		SetCommonHeaders(chromeHeaders).
+		SetHTTP2HeaderPriority(chromeHeaderPriority).
+		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
+	return c
+}
+
+// ImpersonateCustomChrome impersonates a given Chrome fingerprint.
+// We replace any common headers with actual headers from the client if available.
+func (c *Client) ImpersonateCustomChrome(hdrs http.Header, rawClientHello []byte) *Client {
+	commonHeaders := mergeHeaders(chromeHeaders, hdrs)
+	c.
+		SetCustomTLSFingerprint(rawClientHello).
+		SetHTTP2SettingsFrame(chromeCustomHttp2Settings...).
+		SetHTTP2ConnectionFlow(15663105).
+		SetCommonPseudoHeaderOrder(chromePseudoHeaderOrder...).
+		SetCommonHeaderOrder(chromeHeaderOrder...).
+		SetCommonHeaders(commonHeaders).
 		SetHTTP2HeaderPriority(chromeHeaderPriority).
 		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
 	return c
@@ -144,6 +189,10 @@ var (
 		{
 			ID:  http2.SettingHeaderTableSize,
 			Val: 65536,
+		},
+		{
+			ID:  http2.SettingEnablePush,
+			Val: 0,
 		},
 		{
 			ID:  http2.SettingInitialWindowSize,
@@ -254,9 +303,26 @@ func (c *Client) ImpersonateFirefox() *Client {
 		SetHTTP2SettingsFrame(firefoxHttp2Settings...).
 		SetHTTP2ConnectionFlow(12517377).
 		SetHTTP2PriorityFrames(firefoxPriorityFrames...).
-		SetCommonPseudoHeaderOder(firefoxPseudoHeaderOrder...).
+		SetCommonPseudoHeaderOrder(firefoxPseudoHeaderOrder...).
 		SetCommonHeaderOrder(firefoxHeaderOrder...).
 		SetCommonHeaders(firefoxHeaders).
+		SetHTTP2HeaderPriority(firefoxHeaderPriority).
+		SetMultipartBoundaryFunc(firefoxMultipartBoundaryFunc)
+	return c
+}
+
+// ImpersonateCustomFirefox impersonates a given Firefox fingerprint.
+// We replace any common headers with actual headers from the client if available.
+func (c *Client) ImpersonateCustomFirefox(hdrs http.Header, rawClientHello []byte) *Client {
+	commonHeaders := mergeHeaders(firefoxHeaders, hdrs)
+	c.
+		SetCustomTLSFingerprint(rawClientHello).
+		SetHTTP2SettingsFrame(firefoxHttp2Settings...).
+		SetHTTP2ConnectionFlow(12517377).
+		SetHTTP2PriorityFrames(firefoxPriorityFrames...).
+		SetCommonPseudoHeaderOrder(firefoxPseudoHeaderOrder...).
+		SetCommonHeaderOrder(firefoxHeaderOrder...).
+		SetCommonHeaders(commonHeaders).
 		SetHTTP2HeaderPriority(firefoxHeaderPriority).
 		SetMultipartBoundaryFunc(firefoxMultipartBoundaryFunc)
 	return c
@@ -315,10 +381,38 @@ func (c *Client) ImpersonateSafari() *Client {
 		SetTLSFingerprint(utls.HelloSafari_16_0).
 		SetHTTP2SettingsFrame(safariHttp2Settings...).
 		SetHTTP2ConnectionFlow(10485760).
-		SetCommonPseudoHeaderOder(safariPseudoHeaderOrder...).
+		SetCommonPseudoHeaderOrder(safariPseudoHeaderOrder...).
 		SetCommonHeaderOrder(safariHeaderOrder...).
 		SetCommonHeaders(safariHeaders).
 		SetHTTP2HeaderPriority(safariHeaderPriority).
 		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
 	return c
+}
+
+// ImpersonateCustomSafari impersonates a given Safari fingerprint.
+// We replace any common headers with actual headers from the client if available.
+func (c *Client) ImpersonateCustomSafari(hdrs http.Header, rawClientHello []byte) *Client {
+	commonHeaders := mergeHeaders(safariHeaders, hdrs)
+	c.
+		SetTLSFingerprint(utls.HelloSafari_16_0).
+		SetHTTP2SettingsFrame(safariHttp2Settings...).
+		SetHTTP2ConnectionFlow(10485760).
+		SetCommonPseudoHeaderOrder(safariPseudoHeaderOrder...).
+		SetCommonHeaderOrder(safariHeaderOrder...).
+		SetCommonHeaders(commonHeaders).
+		SetHTTP2HeaderPriority(safariHeaderPriority).
+		SetMultipartBoundaryFunc(webkitMultipartBoundaryFunc)
+	return c
+}
+
+// mergeHeaders is a helper function to merge expected with actual browser headers.
+func mergeHeaders(common map[string]string, actual http.Header) map[string]string {
+	headers := make(map[string]string)
+	maps.Copy(headers, common)
+	for k := range actual {
+		if v := actual.Get(k); v != "" {
+			headers[k] = v
+		}
+	}
+	return headers
 }

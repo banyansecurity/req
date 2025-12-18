@@ -43,6 +43,7 @@ type retryOption struct {
 	GetRetryInterval GetRetryIntervalFunc
 	RetryConditions  []RetryConditionFunc
 	RetryHooks       []RetryHookFunc
+	SkipCheckingBody bool
 }
 
 func (ro *retryOption) Clone() *retryOption {
@@ -52,6 +53,7 @@ func (ro *retryOption) Clone() *retryOption {
 	o := &retryOption{
 		MaxRetries:       ro.MaxRetries,
 		GetRetryInterval: ro.GetRetryInterval,
+		SkipCheckingBody: ro.SkipCheckingBody,
 	}
 	o.RetryConditions = append(o.RetryConditions, ro.RetryConditions...)
 	o.RetryHooks = append(o.RetryHooks, ro.RetryHooks...)

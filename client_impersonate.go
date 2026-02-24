@@ -394,7 +394,7 @@ func (c *Client) ImpersonateSafari() *Client {
 func (c *Client) ImpersonateCustomSafari(hdrs http.Header, rawClientHello []byte) *Client {
 	commonHeaders := mergeHeaders(safariHeaders, hdrs)
 	c.
-		SetTLSFingerprint(utls.HelloSafari_16_0).
+		SetCustomTLSFingerprint(rawClientHello).
 		SetHTTP2SettingsFrame(safariHttp2Settings...).
 		SetHTTP2ConnectionFlow(10485760).
 		SetCommonPseudoHeaderOrder(safariPseudoHeaderOrder...).
@@ -409,7 +409,7 @@ func (c *Client) ImpersonateCustomSafari(hdrs http.Header, rawClientHello []byte
 func mergeHeaders(common map[string]string, actual http.Header) map[string]string {
 	headers := make(map[string]string)
 	maps.Copy(headers, common)
-	for k := range actual {
+	for k := range common {
 		if v := actual.Get(k); v != "" {
 			headers[k] = v
 		}

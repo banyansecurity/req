@@ -656,7 +656,10 @@ func (r *Request) Do(ctx ...context.Context) *Response {
 	if r.error != nil {
 		return r.newErrorResponse(r.error)
 	}
-	if r.retryOption != nil && r.retryOption.MaxRetries != 0 && r.unReplayableBody != nil { // retryable request should not have unreplayable Body
+	if r.retryOption != nil &&
+		r.retryOption.MaxRetries != 0 &&
+		!r.retryOption.SkipCheckingBody &&
+		r.unReplayableBody != nil { // retryable request should not have unreplayable Body
 		return r.newErrorResponse(errRetryableWithUnReplayableBody)
 	}
 	resp, _ := r.do()
@@ -1226,6 +1229,22 @@ func (r *Request) SetRetryCondition(condition RetryConditionFunc) *Request {
 func (r *Request) AddRetryCondition(condition RetryConditionFunc) *Request {
 	ro := r.getRetryOption()
 	ro.RetryConditions = append(ro.RetryConditions, condition)
+	return r
+}
+
+// EnableSkipCheckingBody skips checking for an unreplayable body to allow the
+// caller to handle the body explicitly on retries.
+func (r *Request) EnableSkipCheckingBody() *Request {
+	ro := r.getRetryOption()
+	ro.SkipCheckingBody = true
+	return r
+}
+
+// DisableSkipCheckingBody enables checking for an unreplayable body to protect
+// the caller from mishandling the body.
+func (r *Request) DisableSkipCheckingBody() *Request {
+	ro := r.getRetryOption()
+	ro.SkipCheckingBody = false
 	return r
 }
 

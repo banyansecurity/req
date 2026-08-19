@@ -1075,3 +1075,10 @@ func TestSetTLSFingerprintSpec(t *testing.T) {
 		t.Errorf("TestSetTLSFingerprintSpec failed on consecutive handshake to different host: %v", err)
 	}
 }
+
+func TestEnablePreserveCookie(t *testing.T) {
+	c := tc().EnablePreserveCookie()
+	tests.AssertEqual(t, true, c.Transport.PreserveCookie)
+	c.DisablePreserveCookie()
+	tests.AssertEqual(t, false, c.Transport.PreserveCookie)
+}

@@ -22,16 +22,19 @@ type h3Prober interface {
 }
 
 const (
-	// proberDialTimeout bounds a single AddConn attempt. It is deliberately
-	// short and independent of any request-facing timeout: a probe's only
-	// job is "can I connect", and a slow or dead candidate must not tie up
-	// a worker for anywhere near as long as a real request is allowed to run.
-	proberDialTimeout = 10 * time.Second
-
 	proberWorkerCount = 8
 	registryChanSize  = 64
 	evictorPeriod     = 1 * time.Minute
 )
+
+// proberDialTimeout bounds a single AddConn attempt. It is deliberately
+// short and independent of any request-facing timeout: a probe's only job
+// is "can I connect", and a slow or dead candidate must not tie up a
+// worker for anywhere near as long as a real request is allowed to run.
+// A var, not a const, solely so tests can shrink it instead of spending
+// real wall-clock time waiting out a 10s dial timeout to prove shutdown
+// behavior; production always uses the default.
+var proberDialTimeout = 10 * time.Second
 
 // altSvcEntry is the only thing the critical path ever reads. A nil
 // transport means "known about, not ready to use", every read path must
@@ -89,6 +92,7 @@ type altSvcRegistry struct {
 	stop     chan struct{}
 
 	t3 h3Prober
+	wg sync.WaitGroup // tracks run, evictLoop, and every proberWorker
 }
 
 func newAltSvcRegistry(t3 h3Prober) *altSvcRegistry {
@@ -100,16 +104,35 @@ func newAltSvcRegistry(t3 h3Prober) *altSvcRegistry {
 		stop:     make(chan struct{}),
 		t3:       t3,
 	}
+	r.wg.Add(proberWorkerCount + 2)
 	for i := 0; i < proberWorkerCount; i++ {
-		go r.proberWorker()
+		go func() {
+			defer r.wg.Done()
+			r.proberWorker()
+		}()
 	}
-	go r.run()
-	go r.evictLoop()
+	go func() {
+		defer r.wg.Done()
+		r.run()
+	}()
+	go func() {
+		defer r.wg.Done()
+		r.evictLoop()
+	}()
 	return r
 }
 
 func (r *altSvcRegistry) close() {
 	close(r.stop)
+}
+
+// wait blocks until every goroutine started by newAltSvcRegistry has
+// actually returned. Production code (DisableHTTP3) has no reason to call
+// this, close() is a fire-and-forget signal there; it exists so tests can
+// prove termination directly instead of assuming the select-on-stop
+// pattern in each loop is correct.
+func (r *altSvcRegistry) wait() {
+	r.wg.Wait()
 }
 
 // discover is called from handleAltSvc, on whichever request's own
@@ -209,8 +232,15 @@ func (r *altSvcRegistry) proberWorker() {
 // ever stores entries that already passed that filter.
 func (r *altSvcRegistry) probe(job altSvcProbeJob) {
 	entry := job.entries[job.index]
+	// AddConn's first-time-dial path starts the real DNS lookup + QUIC
+	// handshake in a background goroutine and returns before it finishes;
+	// its returned error only means "dial started", not "dial resolved".
+	// Canceling ctx as soon as AddConn returns would cancel that
+	// still-running background work out from under it, so cancel is only
+	// ever invoked after the deadline has already elapsed on its own
+	// (context.AfterFunc), making it a no-op cleanup rather than an early cutoff.
 	ctx, cancel := context.WithTimeout(context.Background(), proberDialTimeout)
-	defer cancel()
+	context.AfterFunc(ctx, cancel)
 	hostname := altsvcutil.ConvertURL(entry, job.url).Host
 	err := r.t3.AddConn(ctx, hostname)
 	r.results <- altSvcProbeResult{
@@ -230,17 +260,24 @@ func (r *altSvcRegistry) evictLoop() {
 		select {
 		case <-r.stop:
 			return
-		case <-ticker.C:
-			now := time.Now()
-			r.hosts.Range(func(key, value any) bool {
-				entry := value.(*altSvcEntry)
-				if entry.transport != nil && !entry.expire.IsZero() && now.After(entry.expire) {
-					r.hosts.Delete(key)
-				}
-				return true
-			})
+		case now := <-ticker.C:
+			r.evictExpired(now)
 		}
 	}
+}
+
+// evictExpired removes every confirmed entry whose advertised max-age has
+// passed as of now. Taking now as a parameter, rather than calling
+// time.Now() internally, is what lets a test drive this deterministically
+// instead of waiting on evictorPeriod's real clock.
+func (r *altSvcRegistry) evictExpired(now time.Time) {
+	r.hosts.Range(func(key, value any) bool {
+		entry := value.(*altSvcEntry)
+		if entry.transport != nil && !entry.expire.IsZero() && now.After(entry.expire) {
+			r.hosts.Delete(key)
+		}
+		return true
+	})
 }
 
 // load is the entire critical-path read: one lock-free Load, nothing else.

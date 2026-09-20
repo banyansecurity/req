@@ -122,9 +122,7 @@ type Transport struct {
 	connsPerHostWait map[connectMethodKey]wantConnQueue // waiting getConns
 	dialsInProgress  wantConnQueue
 
-	altSvcJar        altsvc.Jar
-	pendingAltSvcs   map[string]*pendingAltSvc
-	pendingAltSvcsMu sync.RWMutex
+	altSvcRegistry *altSvcRegistry
 
 	// Force using specific http version
 	forceHttpVersion httpVersion
@@ -525,14 +523,6 @@ func (t *Transport) DisablePreserveCookie() *Transport {
 	return t
 }
 
-type pendingAltSvc struct {
-	CurrentIndex int
-	Entries      []*altsvc.AltSvc
-	Mu           sync.Mutex
-	LastTime     time.Time
-	Transport    http.RoundTripper
-}
-
 // EnableForceHTTP1 enable force using HTTP1 (disabled by default).
 func (t *Transport) EnableForceHTTP1() *Transport {
 	t.forceHttpVersion = h1
@@ -582,8 +572,10 @@ func (t *Transport) DisableForceHttpVersion() *Transport {
 }
 
 func (t *Transport) DisableHTTP3() {
-	t.altSvcJar = nil
-	t.pendingAltSvcs = nil
+	if t.altSvcRegistry != nil {
+		t.altSvcRegistry.close()
+		t.altSvcRegistry = nil
+	}
 	t.t3 = nil
 }
 
@@ -602,16 +594,11 @@ func (t *Transport) EnableHTTP3() {
 		return
 	}
 
-	if t.altSvcJar == nil {
-		t.altSvcJar = altsvc.NewAltSvcJar()
-	}
-	if t.pendingAltSvcs == nil {
-		t.pendingAltSvcs = make(map[string]*pendingAltSvc)
-	}
 	t3 := &http3.Transport{
 		Options: &t.Options,
 	}
 	t.t3 = t3
+	t.altSvcRegistry = newAltSvcRegistry(t3)
 }
 
 type wrapResponseBodyKeyType int
@@ -633,18 +620,6 @@ var allowedProtocols = map[string]bool{
 }
 
 func (t *Transport) handleAltSvc(req *http.Request, value string) {
-	addr := netutil.AuthorityKey(req.URL)
-	as := t.altSvcJar.GetAltSvc(addr)
-	if as != nil {
-		return
-	}
-
-	t.pendingAltSvcsMu.Lock()
-	defer t.pendingAltSvcsMu.Unlock()
-	_, ok := t.pendingAltSvcs[addr]
-	if ok {
-		return
-	}
 	ass, err := altsvcutil.ParseHeader(value)
 	if err != nil {
 		if t.Debugf != nil {
@@ -659,34 +634,7 @@ func (t *Transport) handleAltSvc(req *http.Request, value string) {
 		}
 	}
 	if len(entries) > 0 {
-		pas := &pendingAltSvc{
-			Entries: entries,
-		}
-		t.pendingAltSvcs[addr] = pas
-		go t.handlePendingAltSvc(req.URL, pas)
-	}
-}
-
-func (t *Transport) handlePendingAltSvc(u *url.URL, pas *pendingAltSvc) {
-	for i := pas.CurrentIndex; i < len(pas.Entries); i++ {
-		switch pas.Entries[i].Protocol {
-		case "h3": // only support h3 in alt-svc for now
-			u2 := altsvcutil.ConvertURL(pas.Entries[i], u)
-			hostname := u2.Host
-			err := t.t3.AddConn(context.Background(), hostname)
-			if err != nil {
-				if t.Debugf != nil {
-					t.Debugf("failed to get http3 connection: %s", err.Error())
-				}
-			} else {
-				pas.CurrentIndex = i
-				pas.Transport = t.t3
-				if t.Debugf != nil {
-					t.Debugf("detected that the server %s supports http3, will try to use http3 protocol in subsequent requests", hostname)
-				}
-				return
-			}
-		}
+		t.altSvcRegistry.discover(netutil.AuthorityKey(req.URL), req.URL, entries)
 	}
 }
 
@@ -849,54 +797,24 @@ func (tr *transportRequest) setError(err error) {
 	tr.mu.Unlock()
 }
 
-func (t *Transport) roundTripAltSvc(req *http.Request, as *altsvc.AltSvc) (resp *http.Response, err error) {
-	r := req.Clone(req.Context())
-	r.URL = altsvcutil.ConvertURL(as, req.URL)
-	switch as.Protocol {
-	case "h3":
-		resp, err = t.t3.RoundTrip(r)
-	case "h2":
-		resp, err = t.t2.RoundTrip(r)
-	default:
-		// impossible!
-		panic(fmt.Sprintf("unknown protocol %q", as.Protocol))
-	}
-	return
-}
-
+// checkAltSvc is the entire critical-path cost of H3 discovery: one
+// lock-free read. If nothing usable is known for this host yet, it falls
+// through immediately to normal H2/H1, it never waits on a probe in
+// progress and never blocks on anything another request might be doing.
 func (t *Transport) checkAltSvc(req *http.Request) (resp *http.Response, err error) {
-	if t.altSvcJar == nil {
+	if t.altSvcRegistry == nil {
 		return
 	}
 	addr := netutil.AuthorityKey(req.URL)
-	t.pendingAltSvcsMu.RLock()
-	pas, ok := t.pendingAltSvcs[addr]
-	t.pendingAltSvcsMu.RUnlock()
-	if ok && pas.Transport != nil {
-		pas.Mu.Lock()
-		if pas.Transport != nil {
-			pas.LastTime = time.Now()
-			r := req.Clone(req.Context())
-			r.URL = altsvcutil.ConvertURL(pas.Entries[pas.CurrentIndex], req.URL)
-			resp, err = pas.Transport.RoundTrip(r)
-			if err != nil {
-				pas.Transport = nil
-				if pas.CurrentIndex+1 < len(pas.Entries) {
-					pas.CurrentIndex++
-					go t.handlePendingAltSvc(req.URL, pas)
-				}
-			} else {
-				t.altSvcJar.SetAltSvc(addr, pas.Entries[pas.CurrentIndex])
-				t.pendingAltSvcsMu.Lock()
-				delete(t.pendingAltSvcs, addr)
-				t.pendingAltSvcsMu.Unlock()
-			}
-		}
-		pas.Mu.Unlock()
+	entry, ok := t.altSvcRegistry.load(addr)
+	if !ok {
 		return
 	}
-	if as := t.altSvcJar.GetAltSvc(addr); as != nil {
-		return t.roundTripAltSvc(req, as)
+	r := req.Clone(req.Context())
+	r.URL = altsvcutil.ConvertURL(entry.entries[entry.index], req.URL)
+	resp, err = entry.transport.RoundTrip(r)
+	if err != nil {
+		t.altSvcRegistry.reportError(addr)
 	}
 	return
 }
